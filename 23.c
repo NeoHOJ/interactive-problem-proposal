@@ -10,13 +10,11 @@ static int gcd(int a, int b) {
 }
 
 int main() {
-    printf("My pid is %d.\n", getpid());
-    puts("Waiting for ptrace attach...");
-
-    pause();
-    errno = 0;
-
-    puts("Attached!");
+    // no longer need these?
+    // printf("My pid is %d.\n", getpid());
+    // puts("Waiting for ptrace attach...");
+    // pause();
+    // puts("Attached!");
 
     /* real answers start here */
     int len, nowGCD, nextNumber, firstNumber;

@@ -43,7 +43,7 @@ int main() {
     // PTRACE_ATTACH delivers a SIGSTOP to stop the tracee
     // so continue it when we are ready
     // if using PTRACE_SEIZE, this step is omitted
-    kill(pid, SIGCONT);
+    // kill(pid, SIGCONT);
 
     int ws;
     // the first PTRACE_CONT -> waitpid must be (ws>>8 == SIGCONT)
@@ -51,7 +51,7 @@ int main() {
     int signo = 0;
 
     while (1) {
-        puts("> Enter trace loop");
+        puts(">>> Enter trace loop");
         int res;
         if ((res = ptrace(PTRACE_CONT, pid, 0, signo)) < 0) {
             perror("ptrace CONT");
@@ -102,6 +102,7 @@ int main() {
             // scanf("%d", &new_syscall);
             __callback(pid, regs);
             regs.orig_rax = new_syscall;
+            regs.rax = 0;
             ptrace(PTRACE_SETREGS, pid, NULL, &regs);
         } else if (ws>>8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
             int msg;
@@ -117,8 +118,8 @@ int main() {
             ptrace(PTRACE_DETACH, pid, NULL, NULL);
             break;
         } else if (first) {
+            first = 0;
             // This is because we use pause() to stop at a certain point
-            printf("Skip pause()\n");
 
             struct user_regs_struct regs;
             if (ptrace(PTRACE_GETREGS, pid, NULL, &regs) < 0) {
@@ -127,19 +128,25 @@ int main() {
 
             if (regs.orig_rax != 34) {
                 printf("The first syscall is %lld instead of pause()\n", regs.orig_rax);
-                return -1;
+                continue;
+                // return -1;
             }
+
+            printf("Skip pause()\n");
 
             regs.orig_rax = -1; // set to invalid syscall
             // To understand why setting rax here:
             // https://stackoverflow.com/questions/37167141/linux-syscalls-and-errno
             regs.rax = -EINTR;
             ptrace(PTRACE_SETREGS, pid, NULL, &regs);
-
-            first = 0;
         } else {
-            printf("???\n");
-            return -1;
+            struct user_regs_struct regs;
+            if (ptrace(PTRACE_GETREGS, pid, NULL, &regs) < 0) {
+                return -1;
+            }
+
+            printf("???: syscall id=%lld\n", regs.orig_rax);
+            // return -1;
         }
     }
 }
