@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
 #include <signal.h>
-#include <sys/user.h>
-#include <sys/ptrace.h>
-#include "23.h"
-#include "checker.h"
+#include <sys/syscall.h>
+
+static int gcd(int a, int b) {
+    return a == 0 ? b : gcd(b % a, a);
+}
 
 #define MAX 100010
 #define ABORT_IF_FAILED(x) { \
@@ -14,8 +17,6 @@
         abort(); \
     } \
 }
-
-static pid_t _pid = -1;
 
 static int cnt;
 static int numbers[MAX];
@@ -30,12 +31,9 @@ static enum {
 } status = 0;
 static int pos = 0;
 
-static int gcd(int a, int b) {
-    return a == 0 ? b : gcd(b % a, a);
-}
 
 static int fatal() {
-    return kill(_pid, SIGKILL);
+    return raise(SIGKILL);
 }
 
 __attribute__((constructor))
@@ -55,7 +53,7 @@ void GetN(int* x) {
     if (status != SHOULD_GET_N) {
         fatal();
     }
-    // printf("GET_N\n");
+    printf("GET_N\n");
     *x = cnt;
     status = SHOULD_GET_A_NUMBER;
 }
@@ -64,7 +62,7 @@ void Get(int* x) {
     if (status != SHOULD_GET_A_NUMBER) {
         fatal();
     }
-    printf("GET(int)!! [%d]: %d\n", pos, numbers[pos]);
+    printf("GET [%d]: %d\n", pos, numbers[pos]);
     *x = numbers[pos];
     if (pos == 0) {
         pos++;
@@ -77,7 +75,7 @@ void Report(int x) {
     if (status != SHOULD_REPORT) {
         fatal();
     }
-    printf("Report pos=%d, n=%d\n", pos, x);
+    printf("REPORT pos=%d, n=%d\n", pos, x);
     reportPool[pos] = x;
     pos++;
     status = (pos < cnt ? SHOULD_GET_A_NUMBER : SHOULD_EXIT);
@@ -108,27 +106,25 @@ void Bye() {
     }
 }
 
+int main() {
+    // no longer need these?
+    // printf("My pid is %d.\n", getpid());
+    // puts("Waiting for ptrace attach...");
+    // pause();
+    // puts("Attached!");
 
-void __callback(pid_t pid, struct user_regs_struct regs) {
-    _pid = pid;
-    int tmp;
-    // printf("--- rdi=%lld, rsi=%llx\n", regs.rdi, regs.rsi);
-    switch (regs.rdi) {
-    case 1:
-        GetN(&tmp);
-        ptrace(PTRACE_POKEDATA, pid, regs.rsi, (size_t) tmp);
-        break;
-    case 2:
-        Get(&tmp);
-        ptrace(PTRACE_POKEDATA, pid, regs.rsi, (size_t) tmp);
-        break;
-    case 3:
-        Report(regs.rsi);
-        break;
-    case 4:
-        Bye();
-        break;
-    default:
-        regs.orig_rax = -1;
+    /* real answers start here */
+    int len, nowGCD, nextNumber, firstNumber;
+    GetN(&len);
+    Get(&firstNumber);
+    // printf("first=%d\n", firstNumber);
+    nowGCD = firstNumber;
+    for(int i = 1; i < len; i++) {
+        Get(&nextNumber);
+        // printf("next(%d)=%d\n", i, nextNumber);
+        nowGCD = gcd(nowGCD, nextNumber);
+        // printf("now gcd=%d\n", nowGCD);
+        Report(nowGCD);
     }
+    Bye();
 }

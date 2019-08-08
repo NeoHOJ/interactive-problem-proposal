@@ -36,9 +36,15 @@ def run(fifo_path):
         if grp is None:
             continue
         pid = int(grp.group(1))
+        # be warned that the pipe might be full, and thus blocks
+        # the main process, which causes deadlock, if the log is
+        # too long (which is unlikely here)
         break
 
     print('!!! PID=', pid)
+    # sleep deliberately to eliminate the race condition:
+    # if the child does not stop, then the tracer must fail to attach
+    time.sleep(0.5)
     pDebug.stdin.write('{}\n'.format(pid).encode())
     pDebug.stdin.flush()
     pDebug.wait()
